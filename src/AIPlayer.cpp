@@ -40,7 +40,7 @@ void AIPlayer::think(color & c_piece, int & id_piece, int & dice) const{
             thinkMiniMax(c_piece,id_piece, dice, 0, true);
             break;
         case 5:
-            thinkPoda(c_piece,id_piece, dice, 0,menosinf,masinf,true);
+            thinkPoda(*actual, c_piece,id_piece, dice, 0,menosinf,masinf);
             break;
     }
 
@@ -242,75 +242,50 @@ int AIPlayer::thinkMiniMax(color & c_piece,  int & id_piece, int & dice, int pro
 }
 
 
-double AIPlayer::thinkPoda(color & c_piece,  int & id_piece, int & dice, int prof, double a, double b, bool esMax) const{
+double AIPlayer::thinkPoda(const Parchis &actual, color & c_piece,  int & id_piece, int & dice, int prof, double a, double b) const{
+    cout << "profundidad: " << prof <<endl;
+    if(prof == 6 || actual.gameOver()) return ValoracionTest(actual, this->actual->getCurrentPlayerId());
 
     color last_c_piece = none;
     int last_id_piece = -1;
     int last_dice = -1;
-    bool esMaxHijo;
-    int value;  //menosif
-    bool poda = false;
+    bool esMax,poda = false;
+    double Valor_Hijo;
 
-    if(prof == 4 || actual->gameOver()) return ValoracionTest(*actual, c_piece);
+    esMax = (actual.getCurrentPlayerId() == this->actual->getCurrentPlayerId());
     
+    Parchis siguiente_hijo = actual.generateNextMoveDescending(last_c_piece, last_id_piece, last_dice);
 
-    if(esMax) //es Max
-        value = menosinf;   
-     else  //es Min
-        value = masinf;
+    while(!(siguiente_hijo == actual) and !poda){
+        cout << "entro en while" << endl;
 
-    Parchis siguiente_hijo = actual->generateNextMoveDescending(last_c_piece, last_id_piece, last_dice);
+        Valor_Hijo = thinkPoda(siguiente_hijo, last_c_piece, last_id_piece, last_dice, prof + 1,a,b);
+        cout << "valor hijo:" <<Valor_Hijo << endl;
+        
 
-    if(esMax){
-        while(!(siguiente_hijo == *actual) and !poda){
-            if(!siguiente_hijo.isEatingMove()) esMaxHijo = !esMax;
-
-            int val = thinkPoda(last_c_piece, last_id_piece, last_dice, prof + 1,a,b,esMaxHijo);
+        if(esMax and (a < Valor_Hijo)){
+            a = Valor_Hijo;
             
-            if(value < val){
-                value = val;
-                if(prof == 0){
-                    c_piece = last_c_piece;
-                    id_piece = last_id_piece;
-                    dice = last_dice;
-                }
-            }
-
-
-            if(val > a) a = val;
-
-            if(b <= a) poda = true;
-            else siguiente_hijo = actual->generateNextMoveDescending(last_c_piece, last_id_piece, last_dice);
-
-
-
-        }
-
-        return value;
-
-    } else if(!esMax){
-        while(!(siguiente_hijo == *actual) and !poda){
-            if(!siguiente_hijo.isEatingMove()) esMaxHijo = !esMax;
-
-            int val = thinkPoda(last_c_piece, last_id_piece, last_dice, prof + 1,a,b,esMaxHijo);
-
-            if(value > val){
-                value = val;
-                    if(prof == 0){
+            if(prof == 0){
                         c_piece = last_c_piece;
                         id_piece = last_id_piece;
                         dice = last_dice;
-                    }
             }
-            if(val < b) b = val;
+        } else if(!esMax and(b > Valor_Hijo)) 
+            b = Valor_Hijo;
+        
 
-                if(b <= a) poda = true;
-                else siguiente_hijo = actual->generateNextMoveDescending(last_c_piece, last_id_piece, last_dice);
-                
-        }
-        return value;
+        cout << a << " , " << b << endl;
+
+        if(b <= a) 
+            poda = true;
+        else 
+            siguiente_hijo = actual.generateNextMoveDescending(last_c_piece, last_id_piece, last_dice);
     }
+    
+    return (esMax) ? a : b;
 }
+
 
 double AIPlayer::ValoracionTest(const Parchis &estado, int jugador)
 {
