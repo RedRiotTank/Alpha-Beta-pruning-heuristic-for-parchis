@@ -24,22 +24,8 @@ bool AIPlayer::move(){
 void AIPlayer::think(color & c_piece, int & id_piece, int & dice) const{
     
     switch(id){
+      
         case 0:
-            thinkAleatorio(c_piece, id_piece, dice);
-            break;
-        case 1:
-            thinkAleatorioMasInteligente(c_piece, id_piece, dice);
-            break;
-        case 2: 
-            thinkFichaMasAdelantada(c_piece, id_piece, dice);
-            break;
-        case 3:
-            thinkMejorOpcion(c_piece, id_piece, dice);
-            break;
-        case 4:
-            thinkMiniMax(c_piece,id_piece, dice, 0, true);
-            break;
-        case 5:
             thinkPoda(*actual, c_piece,id_piece, dice, 0,menosinf,masinf);
             break;
     }
@@ -210,7 +196,7 @@ int AIPlayer::thinkMiniMax(color & c_piece,  int & id_piece, int & dice, int pro
     int last_id_piece = -1;
     int last_dice = -1;
     
-    int value;
+    double value;
 
     if(prof == 4){
         return ValoracionTest(*actual, c_piece);
@@ -242,50 +228,108 @@ int AIPlayer::thinkMiniMax(color & c_piece,  int & id_piece, int & dice, int pro
 }
 
 
-double AIPlayer::thinkPoda(const Parchis &actual, color & c_piece,  int & id_piece, int & dice, int prof, double a, double b) const{
-    cout << "profundidad: " << prof <<endl;
-    if(prof == 6 || actual.gameOver()) return ValoracionTest(actual, this->actual->getCurrentPlayerId());
 
-    color last_c_piece = none;
-    int last_id_piece = -1;
-    int last_dice = -1;
-    bool esMax,poda = false;
-    double Valor_Hijo;
+//---------------- Heurísticas -----------------------------------------------
 
-    esMax = (actual.getCurrentPlayerId() == this->actual->getCurrentPlayerId());
+
+
+/*
+NOTAS: hacer alguna forma de mantener las barreras, si estoy en lamisma casilla que alguien, esperar a que se mueva para coemrmelo después
+no comerme fichas mías si tengo 3 en la meta y que se deje comer por el que tiene 3 fichas en la meta. para así no autosabotearme.
+
+NO PONERSE DELANTE DE ALGUIEN QUE ESTE EN UNA CASILLA SEGURA
+
+*/
+double AIPlayer::Heu1(const Parchis &estado, int jugador){
     
-    Parchis siguiente_hijo = actual.generateNextMoveDescending(last_c_piece, last_id_piece, last_dice);
+    //si la casilla es fina queue le doy 5 puntos.
+    int oponente = (jugador + 1) % 2;
+    double puntuacionJugador = 0;
+    double puntuacion_oponente = 0;
+    
+    const double CASILLA_NORMAL = 70;
+    const double CASILLA_SEGURA = 8;
+    const double ENTRADA_META = 2;
+    const double BARRERA = 0;
+    const double COMER = 20;
 
-    while(!(siguiente_hijo == actual) and !poda){
-        cout << "entro en while" << endl;
+    if(estado.getWinner() == jugador)
+        return masinf;
+     else if (estado.getWinner() == oponente)
+        return menosinf;
+    
 
-        Valor_Hijo = thinkPoda(siguiente_hijo, last_c_piece, last_id_piece, last_dice, prof + 1,a,b);
-        cout << "valor hijo:" <<Valor_Hijo << endl;
-        
+    if(estado.isEatingMove() ){
+        if(estado.getCurrentPlayerId() == jugador)
+            puntuacionJugador += COMER;
+        else
+            puntuacion_oponente += COMER;
 
-        if(esMax and (a < Valor_Hijo)){
-            a = Valor_Hijo;
-            
-            if(prof == 0){
-                        c_piece = last_c_piece;
-                        id_piece = last_id_piece;
-                        dice = last_dice;
-            }
-        } else if(!esMax and(b > Valor_Hijo)) 
-            b = Valor_Hijo;
-        
-
-        cout << a << " , " << b << endl;
-
-        if(b <= a) 
-            poda = true;
-        else 
-            siguiente_hijo = actual.generateNextMoveDescending(last_c_piece, last_id_piece, last_dice);
     }
     
-    return (esMax) ? a : b;
-}
+//--------------- YO ---------------------
+    vector<color> my_colors = estado.getPlayerColors(jugador);
+    for (int i = 0; i < my_colors.size(); i++){
+        color c = my_colors[i];
+        puntuacionJugador += estado.piecesAtGoal(c) *12;
+        for (int j = 0; j < num_pieces; j++){
 
+            if(estado.getBoard().getPiece(c,j).type == final_queue)
+                puntuacionJugador += 5;
+
+            if(estado.getBoard().getPiece(c,j).type != home)
+                puntuacionJugador += 7;
+            
+            
+            if(estado.isWall(estado.getBoard().getPiece(c,j)))
+                puntuacionJugador += BARRERA;
+                
+            if(estado.getBoard().getPiece(c,j).type == normal)
+                puntuacionJugador += CASILLA_NORMAL - estado.distanceToGoal(c,j);
+
+            //Sumo puntuación si está en un lugar seguro.
+            if (estado.isSafePiece(c, j))
+                    puntuacionJugador += CASILLA_SEGURA;
+            else if (estado.getBoard().getPiece(c, j).type == goal)
+                    puntuacionJugador += ENTRADA_META;
+            }
+    
+        }
+
+
+//----------------OPONENTE -----------------------------
+        vector<color> op_colors = estado.getPlayerColors(oponente);
+        for (int i = 0; i < op_colors.size(); i++){
+            color c = op_colors[i];
+           puntuacion_oponente += estado.piecesAtGoal(c) *12;
+
+
+            for (int j = 0; j < num_pieces; j++){
+
+                if(estado.getBoard().getPiece(c,j).type == final_queue)
+                puntuacionJugador += 5;
+
+                if(estado.getBoard().getPiece(c,j).type != home)
+                puntuacion_oponente += 7;
+                
+
+                if(estado.isWall(estado.getBoard().getPiece(c,j)))
+                    puntuacion_oponente += BARRERA;
+                
+                if(estado.getBoard().getPiece(c,j).type == normal)
+                    puntuacion_oponente += CASILLA_NORMAL - estado.distanceToGoal(c,j);
+
+                if (estado.isSafePiece(c, j))
+                    puntuacion_oponente += CASILLA_SEGURA;
+                else if (estado.getBoard().getPiece(c, j).type == goal)
+                    puntuacion_oponente += ENTRADA_META;
+                
+            }
+        }
+
+
+    return puntuacionJugador - puntuacion_oponente;
+}
 
 double AIPlayer::ValoracionTest(const Parchis &estado, int jugador)
 {
@@ -357,3 +401,51 @@ double AIPlayer::ValoracionTest(const Parchis &estado, int jugador)
     }
 }
 
+double AIPlayer::thinkPoda(const Parchis &actual, color & c_piece,  int & id_piece, int & dice, int prof, double a, double b) const{
+   
+    if(prof == 6 || actual.gameOver()) return Heu1(actual, this->actual->getCurrentPlayerId());
+
+    color last_c_piece = none;
+    int last_id_piece = -1;
+    int last_dice = -1;
+    bool esMax,poda = false;
+    double Valor_Hijo;
+    if(prof == 0 ) id_piece = -1;
+    esMax = (actual.getCurrentPlayerId() == this->actual->getCurrentPlayerId());
+    
+    Parchis siguiente_hijo = actual.generateNextMoveDescending(last_c_piece, last_id_piece, last_dice);
+
+    while(!(siguiente_hijo == actual) and !poda){
+      
+       
+
+        Valor_Hijo = thinkPoda(siguiente_hijo, last_c_piece, last_id_piece, last_dice, prof + 1,a,b);
+    
+        if(esMax and (a < Valor_Hijo)){
+            a = Valor_Hijo;
+            
+            if(prof == 0){
+                        c_piece = last_c_piece;
+                        id_piece = last_id_piece;
+                        dice = last_dice;
+                        cout << "prof: " << prof << " id_piece: " << id_piece << " cpiece: " << c_piece << "dice: " <<dice << endl;
+            }
+        } else if(!esMax and(b > Valor_Hijo)) 
+            b = Valor_Hijo;
+
+        if(b <= a) 
+            poda = true;
+        else 
+            siguiente_hijo = actual.generateNextMoveDescending(last_c_piece, last_id_piece, last_dice);
+    }
+
+    
+
+    if(id_piece == -1 and prof == 0){
+        
+        thinkAleatorio(c_piece, id_piece, dice);
+        
+    }
+    
+    return (esMax) ? a : b;
+}

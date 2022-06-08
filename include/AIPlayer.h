@@ -65,6 +65,8 @@ class AIPlayer: public Player{
         
         double thinkPoda(const Parchis &actual,color & c_piece,  int & id_piece, int & dice, int prof, double a, double b) const;
 
+
+       
         /**
          * @brief Método que determina si el player es inteligente (decide el mejor movimiento)
          * o no. True para AIPlayer.
@@ -82,6 +84,10 @@ class AIPlayer: public Player{
          * @return double 
          */
         static double ValoracionTest(const Parchis &estado, int jugador);
+
+
+        static double Heu1(const Parchis &estado, int jugador);
+        
 
         /**
          * @brief Propuesta de declaración de la función poda alfa-beta.
